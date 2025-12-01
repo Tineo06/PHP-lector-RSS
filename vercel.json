@@ -1,6 +1,25 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "/(.*)", "dest": "/index.php" }
+  "functions": {
+    "api/*.php": {
+      "runtime": "vercel-php@0.7.4"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/index.php"
+    },
+    {
+      "source": "/RSSElMundo",
+      "destination": "/api/RSSElMundo.php"
+    },
+    {
+      "source": "/RSSElPais",
+      "destination": "/api/RSSElPais.php"
+    },
+    {
+      "source": "/test_curl",
+      "destination": "/api/test_curl.php"
+    }
   ]
 }
