@@ -1,71 +1,86 @@
 <?php
 
 require_once "conexionRSS.php";
-require_once "conexionBBDD.php";  // usa Turso
 
-$rssUrl = "https://api.allorigins.win/raw?url=" . urlencode("http://ep00.epimg.net/rss/elpais/portada.xml");
+// URL original
+$rssUrlOriginal = "http://ep00.epimg.net/rss/elpais/portada.xml";
+
+// Proxy HTTPS
+$rssUrl = "https://api.allorigins.win/raw?url=" . urlencode($rssUrlOriginal);
+
+// --- DESCARGA ---
 $xmlData = download($rssUrl);
-$xml = simplexml_load_string($xmlData);
 
-if (!$xml) {
-    echo "Error cargando RSS El País";
-    exit;
+if (!$xmlData || strlen($xmlData) < 20) {
+    die("Error cargando RSS El País (respuesta vacía)");
 }
 
+// --- LIMPIAR HTML ANTES DE PARSEAR XML ---
+$xmlData = html_entity_decode($xmlData, ENT_QUOTES | ENT_XML1, 'UTF-8');
+$xmlData = preg_replace('/&([a-zA-Z]+);/', '', $xmlData);  // elimina entidades no definidas (&bull;, &nbsp;, etc)
+$xmlData = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $xmlData); // elimina scripts
+$xmlData = preg_replace('/<\/?span[^>]*>/', '', $xmlData); // elimina spans
+$xmlData = preg_replace('/<\/?div[^>]*>/', '', $xmlData);  // elimina divs
+
+// --- PARSEAR ---
+$oXML = simplexml_load_string($xmlData);
+
+if (!$oXML) {
+    die("Error interpretando XML El País (XML no válido)");
+}
+
+require_once "conexionBBDD.php";
+
+if(mysqli_connect_error()){
+    die("Conexión a la BBDD ha fallado");
+}
+
+$contador = 0;
+
 $categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
-$categoriaFiltro = "";
 
-foreach ($xml->channel->item as $item) {
+foreach ($oXML->channel->item as $item){
 
-    // Buscar categorías
+    $categoriaFiltro = "";
+
+    // Categorías
     foreach ($item->category as $cat) {
         if (in_array((string)$cat, $categoria)) {
             $categoriaFiltro .= "[" . $cat . "]";
         }
     }
 
-    // Fecha formateada
+    // Fecha
     $fPubli = strtotime($item->pubDate);
-    $newDate = date("Y-m-d", $fPubli);
+    $new_fPubli = date('Y-m-d', $fPubli);
 
-    // contenido
+    // Contenido completo
     $content = $item->children("content", true);
-    $encoded = isset($content->encoded) ? (string)$content->encoded : "";
+    $encoded = $content->encoded ?? "";
+    
+    // Limpiar contenido HTML que NO es apto para XML
+    $encoded = mysqli_real_escape_string($link, $encoded);
 
-    // Evitar duplicados
-    $exists = dbQuery(
-        "SELECT link FROM elpais WHERE link = ?",
-        [(string)$item->link]
-    );
+    // Comprobar duplicado
+    $linkURL = mysqli_real_escape_string($link, $item->link);
+    $sql = "SELECT id FROM elpais WHERE link = '$linkURL' LIMIT 1";
+    $result = mysqli_query($link, $sql);
 
-    $already = false;
-    if (is_array($exists)) {
-        // buscamos si aparece el link
-        $flat = json_encode($exists);
-        if (strpos($flat, (string)$item->link) !== false) {
-            $already = true;
-        }
+    if (mysqli_num_rows($result) == 0 && $categoriaFiltro != "") {
+
+        $titulo = mysqli_real_escape_string($link, $item->title);
+        $descripcion = mysqli_real_escape_string($link, $item->description);
+
+        $sqlInsert = "
+            INSERT INTO elpais (titulo, link, descripcion, categorias, fecha, contenido)
+            VALUES ('$titulo', '$linkURL', '$descripcion', '$categoriaFiltro', '$new_fPubli', '$encoded')
+        ";
+
+        mysqli_query($link, $sqlInsert);
     }
 
-    // Insertar si no existe
-    if (!$already && $categoriaFiltro !== "") {
-
-        dbQuery(
-            "INSERT INTO elpais (titulo, link, descripcion, categoria, fecha, encoded)
-             VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                (string)$item->title,
-                (string)$item->link,
-                (string)$item->description,
-                $categoriaFiltro,
-                $newDate,
-                $encoded
-            ]
-        );
-    }
-
-    // Reset categorías
-    $categoriaFiltro = "";
 }
 
-echo "El País actualizado correctamente.";
+echo "RSS de El País procesado correctamente";
+
+?>
