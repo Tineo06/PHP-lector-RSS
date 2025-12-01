@@ -13,23 +13,19 @@ if (!$xmlData || strlen($xmlData) < 20) {
     die("Error cargando RSS El Mundo (respuesta vacía)");
 }
 
-// --- LIMPIAR HTML Y ENTIDADES ---
+// --- LIMPIAR ENTIDADES Y HTML ---
 $xmlData = html_entity_decode($xmlData, ENT_QUOTES | ENT_XML1, 'UTF-8');
+$xmlData = preg_replace('/&[a-z]+;/i', '', $xmlData); // eliminar entidades como &bull;
+$xmlData = preg_replace('/&(?!#?[0-9]+;)/', '&amp;', $xmlData); // reemplazar & problemáticos
 $xmlData = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $xmlData);
 $xmlData = preg_replace('/<\/?span[^>]*>/', '', $xmlData);
 $xmlData = preg_replace('/<\/?div[^>]*>/', '', $xmlData);
-// Reemplazar & problemáticos
-$xmlData = preg_replace('/&(?!#?[a-z0-9]+;)/i', '&amp;', $xmlData);
 
 // --- PARSEAR XML ---
 libxml_use_internal_errors(true);
 $xml = simplexml_load_string($xmlData);
 if (!$xml) {
-    echo "Error interpretando XML El Mundo:\n";
-    foreach (libxml_get_errors() as $error) {
-        echo $error->message . "\n";
-    }
-    exit;
+    die("Error interpretando XML El Mundo");
 }
 
 // --- CATEGORÍAS ---
@@ -43,24 +39,23 @@ foreach ($xml->channel->item as $item) {
         }
     }
 
+    if ($categoriaFiltro == "") continue;
+
     $fPubli = strtotime($item->pubDate);
     $newDate = date("Y-m-d", $fPubli);
 
     $media = $item->children("media", true);
     $description = isset($media->description) ? (string)$media->description : "";
 
-    // Escapar para la base de datos
     $titulo = mysqli_real_escape_string($link, (string)$item->title);
     $linkURL = mysqli_real_escape_string($link, (string)$item->link);
     $descripcionDB = mysqli_real_escape_string($link, $description);
     $categoriaDB = mysqli_real_escape_string($link, $categoriaFiltro);
     $guidDB = mysqli_real_escape_string($link, (string)($item->guid ?? ""));
 
-    // Evitar duplicados
     $sqlCheck = "SELECT id FROM elmundo WHERE link = '$linkURL' LIMIT 1";
     $resCheck = mysqli_query($link, $sqlCheck);
-
-    if (mysqli_num_rows($resCheck) == 0 && $categoriaFiltro !== "") {
+    if (mysqli_num_rows($resCheck) == 0) {
         $sqlInsert = "
             INSERT INTO elmundo (titulo, link, descripcion, categoria, fecha, guid)
             VALUES ('$titulo', '$linkURL', '$descripcionDB', '$categoriaDB', '$newDate', '$guidDB')
