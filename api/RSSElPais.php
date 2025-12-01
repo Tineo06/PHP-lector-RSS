@@ -1,11 +1,6 @@
 <?php
-
 require_once "conexionRSS.php";
-require_once "conexionBBDD.php"; // Debe definir $link como mysqli
-
-if (!$link) {
-    die("Conexión a la base de datos no disponible.");
-}
+require_once "turso_execute.php"; // Aquí defines la función turso_execute()
 
 // URL RSS El País
 $rssUrlOriginal = "http://ep00.epimg.net/rss/elpais/portada.xml";
@@ -19,8 +14,8 @@ if (!$xmlData || strlen($xmlData) < 20) {
 
 // --- LIMPIAR ENTIDADES Y HTML ---
 $xmlData = html_entity_decode($xmlData, ENT_QUOTES | ENT_XML1, 'UTF-8');
-$xmlData = preg_replace('/&[a-z]+;/i', '', $xmlData); // eliminar &bull; &nbsp; etc
-$xmlData = preg_replace('/&(?!#?[0-9]+;)/', '&amp;', $xmlData); // & problemáticos
+$xmlData = preg_replace('/&[a-z]+;/i', '', $xmlData); 
+$xmlData = preg_replace('/&(?!#?[0-9]+;)/', '&amp;', $xmlData); 
 $xmlData = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $xmlData);
 $xmlData = preg_replace('/<\/?span[^>]*>/', '', $xmlData);
 $xmlData = preg_replace('/<\/?div[^>]*>/', '', $xmlData);
@@ -53,22 +48,21 @@ foreach ($xml->channel->item as $item) {
     $content = $item->children("content", true);
     $description = $content->encoded ?? "";
 
-    $titulo = mysqli_real_escape_string($link, (string)$item->title);
-    $linkURL = mysqli_real_escape_string($link, (string)$item->link);
-    $descripcionDB = mysqli_real_escape_string($link, $description);
-    $categoriaDB = mysqli_real_escape_string($link, $categoriaFiltro);
-    $guidDB = mysqli_real_escape_string($link, (string)($item->guid ?? ""));
+    $titulo = (string)$item->title;
+    $linkURL = (string)$item->link;
+    $descripcionDB = $description;
+    $categoriaDB = $categoriaFiltro;
+    $guidDB = (string)($item->guid ?? "");
 
-    // Evitar duplicados
-    $sqlCheck = "SELECT id FROM elpais WHERE link = '$linkURL' LIMIT 1";
-    $resCheck = mysqli_query($link, $sqlCheck);
-    if (mysqli_num_rows($resCheck) == 0) {
-        $sqlInsert = "INSERT INTO elpais (titulo, link, descripcion, categorias, fecha, contenido)
-                      VALUES ('$titulo','$linkURL','$descripcionDB','$categoriaDB','$newDate','$descripcionDB')";
-        mysqli_query($link, $sqlInsert);
+    // --- Evitar duplicados en Turso ---
+    $check = turso_execute("SELECT id FROM elpais WHERE link = ?", [$linkURL]);
+    if (empty($check['results'][0])) {
+        turso_execute(
+            "INSERT INTO elpais (titulo, link, descripcion, categorias, fecha, contenido) VALUES (?, ?, ?, ?, ?, ?)",
+            [$titulo, $linkURL, $descripcionDB, $categoriaDB, $newDate, $descripcionDB]
+        );
     }
 }
 
 echo "RSS de El País procesado correctamente";
-
 ?>
