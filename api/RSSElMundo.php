@@ -1,7 +1,11 @@
 <?php
 
 require_once "conexionRSS.php";
-require_once "conexionBBDD.php";
+require_once "conexionBBDD.php"; // Debe definir $link como mysqli
+
+if (!$link) {
+    die("Conexión a la base de datos no disponible.");
+}
 
 // URL RSS El Mundo
 $rssUrlOriginal = "https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml";
@@ -15,8 +19,8 @@ if (!$xmlData || strlen($xmlData) < 20) {
 
 // --- LIMPIAR ENTIDADES Y HTML ---
 $xmlData = html_entity_decode($xmlData, ENT_QUOTES | ENT_XML1, 'UTF-8');
-$xmlData = preg_replace('/&[a-z]+;/i', '', $xmlData); // eliminar entidades como &bull;
-$xmlData = preg_replace('/&(?!#?[0-9]+;)/', '&amp;', $xmlData); // reemplazar & problemáticos
+$xmlData = preg_replace('/&[a-z]+;/i', '', $xmlData); // eliminar &bull; &nbsp; etc
+$xmlData = preg_replace('/&(?!#?[0-9]+;)/', '&amp;', $xmlData); // & problemáticos
 $xmlData = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $xmlData);
 $xmlData = preg_replace('/<\/?span[^>]*>/', '', $xmlData);
 $xmlData = preg_replace('/<\/?div[^>]*>/', '', $xmlData);
@@ -24,8 +28,8 @@ $xmlData = preg_replace('/<\/?div[^>]*>/', '', $xmlData);
 // --- PARSEAR XML ---
 libxml_use_internal_errors(true);
 $xml = simplexml_load_string($xmlData);
-if (!$xml) {
-    die("Error interpretando XML El Mundo");
+if (!$xml || !isset($xml->channel->item)) {
+    die("Error interpretando XML El Mundo o no hay items");
 }
 
 // --- CATEGORÍAS ---
@@ -33,16 +37,18 @@ $categoria = ["Política","Deportes","Ciencia","España","Economía","Música","
 
 foreach ($xml->channel->item as $item) {
     $categoriaFiltro = "";
-    foreach ($item->category as $cat) {
-        if (in_array((string)$cat, $categoria)) {
-            $categoriaFiltro .= "[" . $cat . "]";
+    if (isset($item->category)) {
+        foreach ($item->category as $cat) {
+            if (in_array((string)$cat, $categoria)) {
+                $categoriaFiltro .= "[" . $cat . "]";
+            }
         }
     }
 
     if ($categoriaFiltro == "") continue;
 
-    $fPubli = strtotime($item->pubDate);
-    $newDate = date("Y-m-d", $fPubli);
+    $fPubli = strtotime($item->pubDate ?? "");
+    $newDate = $fPubli ? date("Y-m-d", $fPubli) : date("Y-m-d");
 
     $media = $item->children("media", true);
     $description = isset($media->description) ? (string)$media->description : "";
@@ -53,13 +59,12 @@ foreach ($xml->channel->item as $item) {
     $categoriaDB = mysqli_real_escape_string($link, $categoriaFiltro);
     $guidDB = mysqli_real_escape_string($link, (string)($item->guid ?? ""));
 
+    // Evitar duplicados
     $sqlCheck = "SELECT id FROM elmundo WHERE link = '$linkURL' LIMIT 1";
     $resCheck = mysqli_query($link, $sqlCheck);
     if (mysqli_num_rows($resCheck) == 0) {
-        $sqlInsert = "
-            INSERT INTO elmundo (titulo, link, descripcion, categoria, fecha, guid)
-            VALUES ('$titulo', '$linkURL', '$descripcionDB', '$categoriaDB', '$newDate', '$guidDB')
-        ";
+        $sqlInsert = "INSERT INTO elmundo (titulo, link, descripcion, categoria, fecha, guid)
+                      VALUES ('$titulo','$linkURL','$descripcionDB','$categoriaDB','$newDate','$guidDB')";
         mysqli_query($link, $sqlInsert);
     }
 }
