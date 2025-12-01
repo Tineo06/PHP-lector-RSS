@@ -1,75 +1,65 @@
 <?php
 
 require_once "conexionRSS.php";
+require_once "conexionBBDD.php";   // usa Turso vía HTTP
 
-$sXML=download("https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml");
+$rssUrl = "https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml";
+$xmlData = download($rssUrl);
+$xml = simplexml_load_string($xmlData);
 
-$oXML=new SimpleXMLElement($sXML);
+if (!$xml) {
+    echo "Error leyendo RSS";
+    exit;
+}
 
-require_once "conexionBBDD.php";
+$categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+$categoriaFiltro = "";
 
+foreach ($xml->channel->item as $item) {
 
-if(mysqli_connect_error()){
-    printf("Conexión a el periódico El Mundo ha fallado");
-}else{
-
-    $contador=0;
-    
-    $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
-    $categoriaFiltro="";
-
-    foreach ($oXML->channel->item as $item){ //es un for a la que le hemos dicho que extraer y donde almacenarlo
-
-       
-        $media = $item->children("media", true);
-        $description = $media->description; 
-       
-
-        for ( $i=0 ;$i<count($item->category); $i++){ 
-
-             for($j=0; $j<count($categoria); $j++){
-
-                            if($item->category[$i]==$categoria[$j]){
-                                $categoriaFiltro="[".$categoria[$j]."]".$categoriaFiltro;
-                            }
-                        }            
-
-
+    // Categorías
+    foreach ($item->category as $cat) {
+        if (in_array((string)$cat, $categoria)) {
+            $categoriaFiltro .= "[" . $cat . "]";
         }
+    }
 
+    // Fecha
+    $fPubli = strtotime($item->pubDate);
+    $newDate = date("Y-m-d", $fPubli);
 
-         $fPubli= strtotime($item->pubDate);
-         $new_fPubli= date('Y-m-d', $fPubli);
+    // Descripción (media:description)
+    $media = $item->children("media", true);
+    $description = isset($media->description) ? (string)$media->description : "";
 
-         $media = $item->children("media", true);
-         $description = $media->description; 
+    // Evitar duplicados por link
+    $exists = dbQuery("SELECT link FROM elmundo WHERE link = ?", [(string)$item->link]);
 
-         $sql="SELECT link FROM elmundo";
-         $result= mysqli_query($link,$sql);
-         
-         while($sqlCompara=mysqli_fetch_array($result)){
-                      
-                     
-                 if($sqlCompara['link']==$item->link){
-                     
-                    $Repit=true;
-                    $contador=$contador+1;
-                    $contadorTotal=$contador;
-                    break;
-                    } else {
-                        $Repit=false;
-                    }
-                    
-                   
-                    }
-                     if($Repit==false && $categoriaFiltro<>""){
-                        
-                        $sql="INSERT INTO elmundo VALUES('','$item->title','$item->link','$description','$categoriaFiltro','$new_fPubli','$item->guid')";
-                        $result= mysqli_query($link, $sql);
-                       
-                       
-                } 
-                $categoriaFiltro="";
+    $already = false;
+    if (is_array($exists)) {
+        $flat = json_encode($exists);
+        if (preg_match('/"link"\s*:\s*"([^"]+)"/', $flat)) {
+            $already = true;
+        }
+    }
+
+    if (!$already && $categoriaFiltro !== "") {
+
+        dbQuery(
+            "INSERT INTO elmundo (titulo, link, descripcion, categoria, fecha, guid) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (string)$item->title,
+                (string)$item->link,
+                $description,
+                $categoriaFiltro,
+                $newDate,
+                (string)$item->guid
+            ]
+        );
 
     }
+
+    $categoriaFiltro = "";
 }
+
+echo "Proceso completado";
