@@ -3,7 +3,7 @@
 require_once "conexionRSS.php";
 require_once "conexionBBDD.php";   // usa Turso vía HTTP
 
-$rssUrl = "https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml";
+$rssUrl = "https://api.allorigins.win/raw?url=" . urlencode("https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml");
 $xmlData = download($rssUrl);
 $xml = simplexml_load_string($xmlData);
 

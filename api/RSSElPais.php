@@ -3,7 +3,7 @@
 require_once "conexionRSS.php";
 require_once "conexionBBDD.php";  // usa Turso
 
-$rssUrl = "http://ep00.epimg.net/rss/elpais/portada.xml";
+$rssUrl = "https://api.allorigins.win/raw?url=" . urlencode("http://ep00.epimg.net/rss/elpais/portada.xml");
 $xmlData = download($rssUrl);
 $xml = simplexml_load_string($xmlData);
 
