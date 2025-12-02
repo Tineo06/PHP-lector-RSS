@@ -1,67 +1,75 @@
 <?php
+
 require_once "conexionRSS.php";
-require_once "turso_execute.php"; // Aquí defines la función turso_execute()
 
-$rssUrlOriginal = "https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml";
-$rssUrl = "https://api.allorigins.win/raw?url=" . urlencode($rssUrlOriginal);
+$sXML=download("https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml");
 
-// --- DESCARGA ---
-$xmlData = download($rssUrl);
-if (!$xmlData || strlen($xmlData) < 20) {
-    die("Error cargando RSS El Mundo (respuesta vacía)");
-}
+$oXML=new SimpleXMLElement($sXML);
 
-// --- LIMPIAR ENTIDADES Y HTML ---
-$xmlData = html_entity_decode($xmlData, ENT_QUOTES | ENT_XML1, 'UTF-8');
-$xmlData = preg_replace('/&[a-z]+;/i', '', $xmlData); 
-$xmlData = preg_replace('/&(?!#?[0-9]+;)/', '&amp;', $xmlData); 
-$xmlData = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $xmlData);
-$xmlData = preg_replace('/<\/?span[^>]*>/', '', $xmlData);
-$xmlData = preg_replace('/<\/?div[^>]*>/', '', $xmlData);
+require_once "conexionBBDD.php";
 
-// --- PARSEAR XML ---
-libxml_use_internal_errors(true);
-$xml = simplexml_load_string($xmlData);
-if (!$xml || !isset($xml->channel->item)) {
-    die("Error interpretando XML El Mundo o no hay items");
-}
 
-// --- CATEGORÍAS ---
-$categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+if(mysqli_connect_error()){
+    printf("Conexión a el periódico El Mundo ha fallado");
+}else{
 
-foreach ($xml->channel->item as $item) {
-    $categoriaFiltro = "";
-    if (isset($item->category)) {
-        foreach ($item->category as $cat) {
-            if (in_array((string)$cat, $categoria)) {
-                $categoriaFiltro .= "[" . $cat . "]";
-            }
+    $contador=0;
+    
+    $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+    $categoriaFiltro="";
+
+    foreach ($oXML->channel->item as $item){ //es un for a la que le hemos dicho que extraer y donde almacenarlo
+
+       
+        $media = $item->children("media", true);
+        $description = $media->description; 
+       
+
+        for ( $i=0 ;$i<count($item->category); $i++){ 
+
+             for($j=0; $j<count($categoria); $j++){
+
+                            if($item->category[$i]==$categoria[$j]){
+                                $categoriaFiltro="[".$categoria[$j]."]".$categoriaFiltro;
+                            }
+                        }            
+
+
         }
-    }
 
-    if ($categoriaFiltro == "") continue;
 
-    $fPubli = strtotime($item->pubDate ?? "");
-    $newDate = $fPubli ? date("Y-m-d", $fPubli) : date("Y-m-d");
+         $fPubli= strtotime($item->pubDate);
+         $new_fPubli= date('Y-m-d', $fPubli);
 
-    $media = $item->children("media", true);
-    $description = isset($media->description) ? (string)$media->description : "";
+         $media = $item->children("media", true);
+         $description = $media->description; 
 
-    $titulo = (string)$item->title;
-    $linkURL = (string)$item->link;
-    $descripcionDB = $description;
-    $categoriaDB = $categoriaFiltro;
-    $guidDB = (string)($item->guid ?? "");
+         $sql="SELECT link FROM elmundo";
+         $result= mysqli_query($link,$sql);
+         
+         while($sqlCompara=mysqli_fetch_array($result)){
+                      
+                     
+                 if($sqlCompara['link']==$item->link){
+                     
+                    $Repit=true;
+                    $contador=$contador+1;
+                    $contadorTotal=$contador;
+                    break;
+                    } else {
+                        $Repit=false;
+                    }
+                    
+                   
+                    }
+                     if($Repit==false && $categoriaFiltro<>""){
+                        
+                        $sql="INSERT INTO elmundo VALUES('','$item->title','$item->link','$description','$categoriaFiltro','$new_fPubli','$item->guid')";
+                        $result= mysqli_query($link, $sql);
+                       
+                       
+                } 
+                $categoriaFiltro="";
 
-    // --- Evitar duplicados en Turso ---
-    $check = turso_execute("SELECT id FROM elmundo WHERE link = ?", [$linkURL]);
-    if (empty($check['results'][0])) {
-        turso_execute(
-            "INSERT INTO elmundo (titulo, link, descripcion, categoria, fecha, guid) VALUES (?, ?, ?, ?, ?, ?)",
-            [$titulo, $linkURL, $descripcionDB, $categoriaDB, $newDate, $guidDB]
-        );
     }
 }
-
-echo "RSS de El Mundo procesado correctamente";
-?>

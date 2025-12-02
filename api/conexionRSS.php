@@ -12,6 +12,3 @@ function download($ruta){
     return $salida;
 }
 
-
-
-
