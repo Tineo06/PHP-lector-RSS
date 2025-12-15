@@ -4,6 +4,15 @@ $link = false;
 
 $dbUrl = getenv('DB_POSTGRES_URL'); 
 
+// --- CAMBIO INICIO: Soporte para Localhost ---
+if (empty($dbUrl)) {
+    // Si la variable de entorno está vacía, usamos una manual.
+    // FORMATO: postgres://usuario:contraseña@servidor:puerto/nombre_base_datos
+    // CAMBIA ESTO por tus credenciales de PostgreSQL:
+    $dbUrl = "postgres://postgres:root@localhost:5432/periodico";
+}
+// --- CAMBIO FIN ---
+
 if (!empty($dbUrl)) {
     
     try {
@@ -33,7 +42,8 @@ if (!empty($dbUrl)) {
         
     } catch (PDOException $e) {
         $link = false;
-
+        // Opcional: Descomenta esto para ver el error exacto de conexión si sigue fallando
+        // echo "Error de conexión: " . $e->getMessage();
     }
 }
 ?>
