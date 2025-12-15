@@ -2,7 +2,7 @@
 // conexionRSS.php ya debe estar incluido o requerirse
 require_once "conexionRSS.php";
 
-$sXML = download("http://ep00.epimg.net/rss/elpais/portada.xml");
+$sXML = download("https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada");
 $oXML = new SimpleXMLElement($sXML);
 
 // Asumimos que $link ya viene de index.php o lo requerimos
