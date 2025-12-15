@@ -1,82 +1,69 @@
 <?php
+// api/RSSElPais.php
 
-require_once "conexionRSS.php"; // Tu función de descarga
-require_once "conexionBBDD.php"; // La conexión a Neon
+require_once "conexionRSS.php";
+require_once "conexionBBDD.php";
 
-// 1. Descargar y procesar XML
-$sXML = download("http://ep00.epimg.net/rss/elpais/portada.xml");
-$oXML = new SimpleXMLElement($sXML);
+$url = "http://ep00.epimg.net/rss/elpais/portada.xml";
+$sXML = download($url);
 
-// 2. Obtener conexión PDO
+// Si falla la descarga, no hacemos nada (evita errores fatales)
+if ($sXML === false || empty($sXML)) { return; }
+
+try {
+    // Suprimir advertencias XML temporales
+    libxml_use_internal_errors(true);
+    $oXML = new SimpleXMLElement($sXML);
+} catch (Exception $e) { return; }
+
 $pdo = obtenerConexion();
+if (!$pdo) { return; }
 
-// Definición de categorías
 $categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
 
 foreach ($oXML->channel->item as $item) {
-
-    // --- A. LÓGICA DE FILTRADO DE CATEGORÍAS ---
+    // 1. Filtrar Categorías
     $categoriaFiltro = "";
-    
-    // Verificamos si hay categorías antes de iterar
     if (isset($item->category)) {
         for ($i = 0; $i < count($item->category); $i++) {
             $catActual = (string)$item->category[$i];
-            
-            for ($j = 0; $j < count($categoria); $j++) {
-                if ($catActual == $categoria[$j]) {
-                    $categoriaFiltro = "[" . $categoria[$j] . "]" . $categoriaFiltro;
-                }
+            if (in_array($catActual, $categoria)) {
+                $categoriaFiltro = "[" . $catActual . "]" . $categoriaFiltro;
             }
         }
     }
 
-    // --- B. PREPARAR DATOS ---
-    $fPubli = strtotime($item->pubDate);
-    $new_fPubli = date('Y-m-d', $fPubli);
-    
+    // 2. Datos
     $titulo = (string)$item->title;
     $linkNoticia = (string)$item->link;
-    $descripcion = (string)$item->description;
-
-    // Manejo especial para "content:encoded" (El País suele usar namespaces)
-    $content = $item->children("content", true);
-    $encoded = "";
-    if (isset($content->encoded)) {
-        $encoded = (string)$content->encoded;
-    }
-
-    // --- C. COMPROBAR DUPLICADOS (Versión Optimizada PDO) ---
-    // Consultamos solo si existe ESTE enlace concreto
-    $sqlCheck = "SELECT COUNT(*) FROM elpais WHERE link = :link";
-    $stmtCheck = $pdo->prepare($sqlCheck);
-    $stmtCheck->execute([':link' => $linkNoticia]);
+    $descripcion = isset($item->description) ? (string)$item->description : "";
+    $fPubli = strtotime($item->pubDate);
+    $new_fPubli = ($fPubli) ? date('Y-m-d', $fPubli) : date('Y-m-d');
     
-    // Si devuelve más de 0, es que ya existe
-    $existe = $stmtCheck->fetchColumn() > 0;
+    // Content Encoded (Namespace)
+    $content = $item->children("content", true);
+    $encoded = isset($content->encoded) ? (string)$content->encoded : "";
 
-    // --- D. INSERTAR EN LA BASE DE DATOS ---
-    if (!$existe && $categoriaFiltro != "") {
-        
-        // Ajusta los nombres de las columnas según tu tabla en Neon
-        // Nota: NO pasamos el ID ('') para que Postgres use el autoincremental (SERIAL)
-        $sqlInsert = "INSERT INTO elpais (titulo, link, descripcion, categoria, fecha, contenido) 
-                      VALUES (:titulo, :link, :desc, :cat, :fecha, :content)";
-        
+    // 3. Comprobar si existe y guardar
+    // Usamos PDO para comprobar duplicados
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM elpais WHERE link = :link");
+    $stmt->execute([':link' => $linkNoticia]);
+    
+    // Solo insertamos si no existe y tiene categoría válida
+    if ($stmt->fetchColumn() == 0 && $categoriaFiltro != "") {
         try {
-            $stmtInsert = $pdo->prepare($sqlInsert);
+            $sql = "INSERT INTO elpais (titulo, link, descripcion, categoria, fecha, contenido) VALUES (:t, :l, :d, :c, :f, :cont)";
+            $stmtInsert = $pdo->prepare($sql);
             $stmtInsert->execute([
-                ':titulo' => $titulo,
-                ':link'   => $linkNoticia,
-                ':desc'   => $descripcion,
-                ':cat'    => $categoriaFiltro,
-                ':fecha'  => $new_fPubli,
-                ':content'=> $encoded // Asumo que guardas el 'encoded' en una columna llamada 'contenido' o similar
+                ':t' => $titulo,
+                ':l' => $linkNoticia,
+                ':d' => $descripcion,
+                ':c' => $categoriaFiltro,
+                ':f' => $new_fPubli,
+                ':cont' => $encoded
             ]);
-            
-        } catch (PDOException $e) {
-            // Error silencioso o log
-            // echo "Error: " . $e->getMessage();
+        } catch (Exception $e) {
+            // Error silencioso al insertar
         }
     }
 }
