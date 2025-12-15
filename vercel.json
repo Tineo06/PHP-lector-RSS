@@ -5,11 +5,5 @@
   },
   "routes": [
     { "src": "/(.*)",  "dest": "/index.php" }
-  ],
-  "env": {
-    "PGHOST": "@pghost",
-    "PGDATABASE": "@pgdatabase",
-    "PGUSER": "@pguser",
-    "PGPASSWORD": "@pgpassword"
-  }
+  ]
 }
