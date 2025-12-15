@@ -20,7 +20,7 @@ require_once "conexionBBDD.php";
 
 if ($link instanceof PDO && $oXML !== null) {
             
-    $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+    $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"]; 
     
     $sql_check = "SELECT link FROM elpais WHERE link = :link";
     $stmt_check = $link->prepare($sql_check);
@@ -76,4 +76,3 @@ if ($link instanceof PDO && $oXML !== null) {
 } else if ($link === false) {
     printf("Conexión a el periódico El País ha fallado.");
 }
-?>
