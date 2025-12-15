@@ -1,76 +1,75 @@
 <?php
 
 require_once "conexionRSS.php";
-require_once "conexionBBDD.php"; // Esto nos da la variable $pdo
 
-// Descarga del Feed
-$sXML = download("https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml");
-$oXML = new SimpleXMLElement($sXML);
+$sXML=download("https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml");
 
-// Lista de categorías para filtrar
-$categoriaLista = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+$oXML=new SimpleXMLElement($sXML);
 
-foreach ($oXML->channel->item as $item){ 
+require_once "conexionBBDD.php";
 
-    // 1. Extracción de datos específicos de El Mundo
-    // El Mundo usa namespaces para la descripción (media:description)
-    $media = $item->children("media", true);
-    $description = (string)$media->description; 
+
+if(mysqli_connect_error()){
+    printf("Conexión a el periódico El Mundo ha fallado");
+}else{
+
+    $contador=0;
     
-    // Si la descripción de media está vacía, intentamos coger la estándar por seguridad
-    if (empty($description)) {
-        $description = (string)$item->description;
-    }
+    $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+    $categoriaFiltro="";
 
-    // 2. Lógica de Filtrado de Categorías
-    $categoriaFiltro = "";
-    foreach ($item->category as $catXML) {
-        // Comparamos cada categoría del XML con nuestra lista blanca
-        if (in_array((string)$catXML, $categoriaLista)) {
-            $categoriaFiltro .= "[" . $catXML . "]";
+    foreach ($oXML->channel->item as $item){ //es un for a la que le hemos dicho que extraer y donde almacenarlo
+
+       
+        $media = $item->children("media", true);
+        $description = $media->description; 
+       
+
+        for ( $i=0 ;$i<count($item->category); $i++){ 
+
+             for($j=0; $j<count($categoria); $j++){
+
+                            if($item->category[$i]==$categoria[$j]){
+                                $categoriaFiltro="[".$categoria[$j]."]".$categoriaFiltro;
+                            }
+                        }            
+
+
         }
-    }
 
-    // 3. Formateo de fechas y datos básicos
-    $fPubli = strtotime($item->pubDate);
-    $new_fPubli = date('Y-m-d', $fPubli);
-    
-    $titulo = (string)$item->title;
-    $linkNoticia = (string)$item->link;
-    // En tu código original guardabas el GUID en la columna 'contenido'
-    $guid = (string)$item->guid; 
 
-    // -------------------------------------------------------
-    // CONSULTA PDO (Compatible con PostgreSQL y MySQL)
-    // -------------------------------------------------------
+         $fPubli= strtotime($item->pubDate);
+         $new_fPubli= date('Y-m-d', $fPubli);
 
-    // A. Comprobar si ya existe el link (Optimizado)
-    $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM elmundo WHERE link = :link");
-    $stmtCheck->execute([':link' => $linkNoticia]);
-    $existe = $stmtCheck->fetchColumn();
+         $media = $item->children("media", true);
+         $description = $media->description; 
 
-    // B. Insertar si no existe y tiene categorías válidas
-    if ($existe == 0 && $categoriaFiltro != "") {
-        
-        // Usamos sentencias preparadas para seguridad y compatibilidad
-        $sql = "INSERT INTO elmundo (titulo, link, descripcion, categoria, fPubli, contenido) 
-                VALUES (:titulo, :link, :desc, :cat, :fecha, :cont)";
-        
-        $stmtInsert = $pdo->prepare($sql);
-        
-        try {
-            $stmtInsert->execute([
-                ':titulo' => $titulo,
-                ':link'   => $linkNoticia,
-                ':desc'   => $description,
-                ':cat'    => $categoriaFiltro,
-                ':fecha'  => $new_fPubli,
-                ':cont'   => $guid // Mantenemos tu lógica original de guardar el GUID en contenido
-            ]);
-        } catch (PDOException $e) {
-            // Silenciamos errores de inserción (ej. duplicados concurrentes)
-            // error_log("Error insertando noticia El Mundo: " . $e->getMessage());
-        }
+         $sql="SELECT link FROM elmundo";
+         $result= mysqli_query($link,$sql);
+         
+         while($sqlCompara=mysqli_fetch_array($result)){
+                      
+                     
+                 if($sqlCompara['link']==$item->link){
+                     
+                    $Repit=true;
+                    $contador=$contador+1;
+                    $contadorTotal=$contador;
+                    break;
+                    } else {
+                        $Repit=false;
+                    }
+                    
+                   
+                    }
+                     if($Repit==false && $categoriaFiltro<>""){
+                        
+                        $sql="INSERT INTO elmundo VALUES('','$item->title','$item->link','$description','$categoriaFiltro','$new_fPubli','$item->guid')";
+                        $result= mysqli_query($link, $sql);
+                       
+                       
+                } 
+                $categoriaFiltro="";
+
     }
 }
-?>
