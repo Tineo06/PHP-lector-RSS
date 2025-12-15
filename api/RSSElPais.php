@@ -1,70 +1,50 @@
 <?php
-// api/RSSElPais.php
-
-require_once "conexionRSS.php";
-require_once "conexionBBDD.php";
-
 $url = "http://ep00.epimg.net/rss/elpais/portada.xml";
-$sXML = download($url);
+$opciones = [
+    "http" => [
+        "method" => "GET",
+        "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
+    ]
+];
+$contexto = stream_context_create($opciones);
+$sXML = file_get_contents($url, false, $contexto);
 
-// Si falla la descarga, no hacemos nada (evita errores fatales)
-if ($sXML === false || empty($sXML)) { return; }
-
-try {
-    // Suprimir advertencias XML temporales
+if ($sXML === FALSE || empty($sXML)) {
+    echo "<p style='color:red'>No se han podido cargar las noticias de El País.</p>";
+    $oXML = false;
+} else {
     libxml_use_internal_errors(true);
-    $oXML = new SimpleXMLElement($sXML);
-} catch (Exception $e) { return; }
+    $oXML = simplexml_load_string($sXML);
+}
 
-$pdo = obtenerConexion();
-if (!$pdo) { return; }
-
-$categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
-
-foreach ($oXML->channel->item as $item) {
-    // 1. Filtrar Categorías
-    $categoriaFiltro = "";
-    if (isset($item->category)) {
-        for ($i = 0; $i < count($item->category); $i++) {
-            $catActual = (string)$item->category[$i];
-            if (in_array($catActual, $categoria)) {
-                $categoriaFiltro = "[" . $catActual . "]" . $categoriaFiltro;
-            }
-        }
-    }
-
-    // 2. Datos
-    $titulo = (string)$item->title;
-    $linkNoticia = (string)$item->link;
-    $descripcion = isset($item->description) ? (string)$item->description : "";
-    $fPubli = strtotime($item->pubDate);
-    $new_fPubli = ($fPubli) ? date('Y-m-d', $fPubli) : date('Y-m-d');
+if ($oXML) {
+    echo '<div style="display:flex; flex-wrap:wrap; gap: 20px; justify-content: center;">';
     
-    // Content Encoded (Namespace)
-    $content = $item->children("content", true);
-    $encoded = isset($content->encoded) ? (string)$content->encoded : "";
-
-    // 3. Comprobar si existe y guardar
-    // Usamos PDO para comprobar duplicados
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM elpais WHERE link = :link");
-    $stmt->execute([':link' => $linkNoticia]);
-    
-    // Solo insertamos si no existe y tiene categoría válida
-    if ($stmt->fetchColumn() == 0 && $categoriaFiltro != "") {
-        try {
-            $sql = "INSERT INTO elpais (titulo, link, descripcion, categoria, fecha, contenido) VALUES (:t, :l, :d, :c, :f, :cont)";
-            $stmtInsert = $pdo->prepare($sql);
-            $stmtInsert->execute([
-                ':t' => $titulo,
-                ':l' => $linkNoticia,
-                ':d' => $descripcion,
-                ':c' => $categoriaFiltro,
-                ':f' => $new_fPubli,
-                ':cont' => $encoded
-            ]);
-        } catch (Exception $e) {
-            // Error silencioso al insertar
+    foreach ($oXML->channel->item as $item){
+        $titulo = $item->title;
+        $linkNoticia = $item->link;
+        $descripcion = $item->description;
+        $fecha = date('d/m/Y', strtotime($item->pubDate));
+        
+        $imagen = "";
+        $content = $item->children("content", true); 
+        if (isset($content->encoded)) {
+             preg_match('/<img.+src=[\'"](?P<src>.+?)[\'"].*>/i', $content->encoded, $image);
+             if(isset($image['src'])){
+                 $imagen = "<img src='{$image['src']}' style='width:100%; height:auto; border-radius:5px;'>";
+             }
         }
+        
+        echo "
+        <article style='border: 1px solid #ddd; padding: 15px; width: 300px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); background: white; border-radius: 8px;'>
+            $imagen
+            <h3 style='font-size: 1.1em; margin-top: 10px;'><a href='$linkNoticia' target='_blank' style='text-decoration:none; color:#004488;'>$titulo</a></h3>
+            <p style='font-size: 0.8em; color: #666;'>$fecha</p>
+            <p style='font-size: 0.9em; line-height: 1.4;'>$descripcion</p>
+            <a href='$linkNoticia' target='_blank' style='display:inline-block; margin-top:10px; padding:5px 10px; background:#004488; color:white; text-decoration:none; border-radius:4px; font-size:0.8em;'>Leer más</a>
+        </article>
+        ";
     }
+    echo '</div>';
 }
 ?>
