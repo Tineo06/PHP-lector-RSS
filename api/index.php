@@ -2,164 +2,173 @@
 <html>
     <head>
         <meta charset="UTF-8">
-        <title>Noticias Vercel</title>
-        <style>
-            body { font-family: sans-serif; padding: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #E4CCE8; padding: 8px; text-align: left; font-size: 14px; }
-            th { background-color: #f2f2f2; color: #333; }
-            .filtros { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
-            label { font-weight: bold; margin-right: 5px; }
-            .btn { cursor: pointer; padding: 5px 10px; border-radius: 4px; border: none; font-weight: bold; }
-            .btn-filtrar { background-color: #ddd; color: black; }
-            .btn-actualizar { background-color: #66E9D9; color: black; text-decoration: none; display: inline-block; margin-left: 15px;}
-        </style>
+        <title>Noticias</title>
     </head>
     <body>
-        
-        <form action="index.php" method="GET" class="filtros">
-            <fieldset style="border:none;"> 
-                <legend style="font-size: 1.2em; font-weight:bold;">FILTRO DE NOTICIAS</legend>
-                
-                <label>PERIÓDICO:</label>
-                <select name="periodicos">
-                    <option value="elpais" <?php if(isset($_GET['periodicos']) && $_GET['periodicos'] == 'elpais') echo 'selected'; ?>>El Pais</option>
-                    <option value="elmundo" <?php if(isset($_GET['periodicos']) && $_GET['periodicos'] == 'elmundo') echo 'selected'; ?>>El Mundo</option>      
+        <form action="index.php">
+            <fieldset> 
+                <legend>FILTRO</legend>
+                <label>PERIODICO : </label>
+                <select type="selector" name="periodicos">
+                    <option name="elpais">El Pais</option>
+                    <option name="elmundo">El Mundo</option>      
                 </select> 
-                
-                <label>CATEGORÍA:</label>
-                <select name="categoria">
-                    <option value="">Todas</option>
-                    <option value="Política">Política</option>
-                    <option value="Deportes">Deportes</option>
-                    <option value="Ciencia">Ciencia</option>
-                    <option value="España">España</option>
-                    <option value="Economía">Economía</option>
-                    <option value="Música">Música</option>
-                    <option value="Cine">Cine</option>
-                    <option value="Europa">Europa</option>
-                    <option value="Justicia">Justicia</option>                
+                <label>CATEGORIA : </label>
+                <select type="selector" name="categoria" value="">
+                    <option name=""></option>
+                    <option name="Política">Política</option>
+                    <option name="Deportes">Deportes</option>
+                    <option name="Ciencia">Ciencia</option>
+                    <option name="España">España</option>
+                    <option name="Economía">Economía</option>
+                    <option name="Música">Música</option>
+                    <option name="Cine">Cine</option>
+                    <option name="Europa">Europa</option>
+                    <option name="Justicia">Justicia</option>                
                 </select>
-                
-                <label>FECHA:</label>
-                <input type="date" name="fecha" value="<?php echo isset($_GET['fecha']) ? $_GET['fecha'] : ''; ?>">
-                
-                <label>BUSCAR:</label>
-                <input type="text" name="buscar" placeholder="Palabra clave..." value="<?php echo isset($_GET['buscar']) ? $_GET['buscar'] : ''; ?>">
-                
-                <br><br>
-                <input type="submit" name="filtrar" value="🔍 Filtrar" class="btn btn-filtrar">
-                
-                <a href="index.php?actualizar=1" class="btn btn-actualizar">🔄 Descargar Nuevas Noticias (RSS)</a>
+                <label>FECHA : </label>
+                <input type="date" name="fecha" value=""></input>
+                <label style="margin-left: 5vw;">AMPLIAR FILTRO (la descripción contenga la palabra) : </label>
+                <input type="text" name="buscar" value=""></input>
+                <input type="submit" name="filtrar" value="Filtrar">
             </fieldset>
         </form>
         
         <?php
+        // 1. Incluimos archivos y conexión
         require_once "conexionBBDD.php"; 
-
-        // ---------------------------------------------------------
-        // 1. LÓGICA DE ACTUALIZACIÓN (Solo si pulsamos el botón verde)
-        // ---------------------------------------------------------
-        if (isset($_GET['actualizar']) && $_GET['actualizar'] == '1') {
-            echo "<div style='background:#e6fffa; padding:10px; border:1px solid green; margin:10px 0;'>";
-            echo "Conectando con los periódicos...<br>";
-            
-            // Intentamos cargar los scripts. Si fallan, no rompen toda la web.
-            try {
-                require_once "RSSElPais.php";
-                echo "✅ El País actualizado.<br>";
-            } catch (Exception $e) { echo "❌ Error El País: ".$e->getMessage()."<br>"; }
-
-            try {
-                require_once "RSSElMundo.php";
-                echo "✅ El Mundo actualizado.<br>";
-            } catch (Exception $e) { echo "❌ Error El Mundo: ".$e->getMessage()."<br>"; }
-            
-            echo "<b>Proceso finalizado.</b> <a href='index.php'>Volver a ver noticias</a>";
-            echo "</div>";
-        }
-
-        // ---------------------------------------------------------
-        // 2. LOGICA DE VISUALIZACIÓN (Leer base de datos)
-        // ---------------------------------------------------------
+        
+        // Ejecutamos los scripts RSS para actualizar noticias al cargar (Opcional, puede ralentizar)
+        require_once "RSSElPais.php";
+        require_once "RSSElMundo.php";
+        
+        // 2. Obtenemos la conexión PDO (PostgreSQL)
         $pdo = obtenerConexion();
-
-        if ($pdo) {
-            // A. Determinar qué tabla leer
-            $tabla = "elpais"; // Por defecto
-            if (isset($_GET['periodicos']) && $_GET['periodicos'] == 'elmundo') {
-                $tabla = "elmundo";
-            }
-
-            // B. Construir la consulta SQL dinámicamente
-            $sql = "SELECT * FROM $tabla WHERE 1=1";
-            $params = [];
-
-            // Filtro Categoría
-            if (!empty($_GET['categoria'])) {
-                $sql .= " AND categoria LIKE :cat";
-                $params[':cat'] = "%" . $_GET['categoria'] . "%";
-            }
-
-            // Filtro Fecha
-            if (!empty($_GET['fecha'])) {
-                $sql .= " AND fecha = :fecha";
-                $params[':fecha'] = $_GET['fecha'];
-            }
-
-            // Filtro Buscar Palabra
-            if (!empty($_GET['buscar'])) {
-                $sql .= " AND descripcion LIKE :buscar";
-                $params[':buscar'] = "%" . $_GET['buscar'] . "%";
-            }
-
-            $sql .= " ORDER BY fecha DESC LIMIT 50"; // Limitar a 50 para que no explote
-
-            // C. Ejecutar y Mostrar
+        
+        // 3. Función FILTROS adaptada a PDO
+        function filtros($sql, $pdo){
             try {
+                // Preparamos la consulta (Seguro contra inyecciones básicas)
                 $stmt = $pdo->prepare($sql);
-                $stmt->execute($params);
+                $stmt->execute();
                 
-                echo "<table>";
-                echo "<tr>
-                        <th>TÍTULO</th>
-                        <th>CONTENIDO / DESC</th>
-                        <th>CATEGORÍA</th>
-                        <th>FECHA</th>
-                        <th>ENLACE</th>
-                      </tr>";
-
-                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    // Prevenir errores si alguna columna viene vacía
-                    $titulo = $row['titulo'] ?? 'Sin título';
-                    $desc = $row['descripcion'] ?? '';
-                    $contenido = $row['contenido'] ?? ''; // El Mundo no tiene contenido, usará vacío
-                    $cat = $row['categoria'] ?? '';
-                    $link = $row['link'] ?? '#';
-                    $fechaRaw = $row['fecha'] ?? null;
+                // Iteramos con fetch de PDO
+                while ($arrayFiltro = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    echo "<tr>";              
+                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['titulo']."</th>";
                     
-                    // Formatear fecha
-                    $fechaBonita = "N/A";
-                    if($fechaRaw) {
-                        $dateObj = date_create($fechaRaw);
-                        $fechaBonita = date_format($dateObj, 'd-m-Y');
+                    // Comprobamos si existe 'contenido' (El Pais) o solo descripción
+                    $contenido = isset($arrayFiltro['contenido']) ? $arrayFiltro['contenido'] : '';
+                    echo "<th style='border: 1px #E4CCE8 solid;'>".$contenido."</th>";
+                    
+                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['descripcion']."</th>";                      
+                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['categoria']."</th>";                       
+                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['link']."</th>";                              
+                    
+                    // IMPORTANTE: En la base de datos de Neon la columna se llama 'fecha', no 'fPubli'
+                    if (isset($arrayFiltro['fecha'])) {
+                        $fecha = date_create($arrayFiltro['fecha']);
+                        $fechaConversion = date_format($fecha,'d-M-Y');
+                    } else {
+                        $fechaConversion = "N/A";
                     }
-
-                    // Mostrar fila
-                    echo "<tr>";
-                    echo "<td><b>$titulo</b></td>";
-                    echo "<td><small>".substr($desc, 0, 150)."...</small></td>"; // Cortar descripciones largas
-                    echo "<td>$cat</td>";
-                    echo "<td>$fechaBonita</td>";
-                    echo "<td><a href='$link' target='_blank'>Leer</a></td>";
-                    echo "</tr>";
+                    
+                    echo "<th style='border: 1px #E4CCE8 solid;'>".$fechaConversion."</th>";
+                    echo "</tr>";  
                 }
-                echo "</table>";
-
             } catch (PDOException $e) {
-                echo "<p style='color:red'>Error al leer la base de datos: " . $e->getMessage() . "</p>";
+                echo "<tr><td colspan='6'>Error en la consulta: " . $e->getMessage() . "</td></tr>";
             }
         }
+        
+        // 4. Lógica principal
+        if(!$pdo){
+            printf("Conexión fallida a la base de datos.");
+        } else {
+       
+            echo "<br><table style='border: 5px #E4CCE8 solid; width: 100%; text-align: left;'>";
+            echo "<tr>
+                    <th><p style='color: #66E9D9;'>TITULO</p></th>
+                    <th><p style='color: #66E9D9;'>CONTENIDO</p></th>
+                    <th><p style='color: #66E9D9;'>DESCRIPCIÓN</p></th>
+                    <th><p style='color: #66E9D9;'>CATEGORÍA</p></th>
+                    <th><p style='color: #66E9D9;'>ENLACE</p></th>
+                    <th><p style='color: #66E9D9;'>FECHA</p></th>
+                  </tr>";
+
+            if(isset($_REQUEST['filtrar'])){
+
+                $periodicos = str_replace(' ','',$_REQUEST['periodicos']);
+                $periodicosMin = strtolower($periodicos);
+                
+                // Validación básica de seguridad para el nombre de la tabla
+                if($periodicosMin !== 'elpais' && $periodicosMin !== 'elmundo') {
+                    $periodicosMin = 'elpais';
+                }
+
+                $cat = $_REQUEST['categoria'];
+                $f = $_REQUEST['fecha'];
+                $palabra = $_REQUEST["buscar"];
+                 
+                // NOTA: He cambiado 'fPubli' por 'fecha' en todos los SQL para coincidir con tu tabla Neon
+                
+                // FILTRO PERIODICO (SOLO)
+                if($cat=="" && $f=="" && $palabra==""){
+                     $sql="SELECT * FROM ".$periodicosMin." ORDER BY fecha DESC";
+                     filtros($sql, $pdo);
+                }
+
+                // FILTRO CATEGORIA
+                if($cat!="" && $f=="" && $palabra==""){ 
+                    $sql="SELECT * FROM ".$periodicosMin." WHERE categoria LIKE '%$cat%'";
+                    filtros($sql, $pdo);
+                }
+
+                // FILTRO FECHA
+                if($cat=="" && $f!="" && $palabra==""){
+                   $sql="SELECT * FROM ".$periodicosMin." WHERE fecha='$f'";
+                   filtros($sql, $pdo);
+                }
+
+                // FILTRO CATEGORIA Y FECHA
+                if($cat!="" && $f!="" && $palabra==""){ 
+                     $sql="SELECT * FROM ".$periodicosMin." WHERE categoria LIKE '%$cat%' AND fecha='$f'";
+                     filtros($sql, $pdo);
+                }
+
+                // FILTRO TODO (CAT, FECHA, PALABRA)
+                if($cat!="" && $f!="" && $palabra!=""){ 
+                     $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' AND categoria LIKE '%$cat%' AND fecha='$f'";
+                     filtros($sql, $pdo);
+                }  
+
+                // FILTRO CATEGORIA Y PALABRA
+                if($cat!="" && $f=="" && $palabra!=""){ 
+                     $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' AND categoria LIKE '%$cat%'";
+                     filtros($sql, $pdo);
+                } 
+
+                // FILTRO FECHA Y PALABRA 
+                if($cat=="" && $f!="" && $palabra!=""){ 
+                     $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' AND fecha='$f'";
+                     filtros($sql, $pdo);
+                }  
+
+                // FILTRO PALABRA (SOLO)
+                if($palabra!="" && $cat=="" && $f=="" ){ 
+                     $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%'";
+                     filtros($sql, $pdo);
+                } 
+                
+            } else {
+                // CARGA POR DEFECTO
+                $sql="SELECT * FROM elpais ORDER BY fecha DESC";
+                filtros($sql, $pdo);
+            }
+        }
+          
+        echo "</table>";   
         ?>
+        
     </body>
 </html>
