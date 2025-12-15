@@ -3,8 +3,7 @@
 require_once "conexionRSS.php";
 require_once "conexionBBDD.php";
 
-// 2. Descargar RSS de El País
-$sXML = download("http://ep00.epimg.net/rss/elpais/portada.xml");
+$sXML = download("https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada");
 $oXML = new SimpleXMLElement($sXML);
 
 // 3. Verificar conexión
