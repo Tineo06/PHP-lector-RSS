@@ -4,7 +4,7 @@
 require_once "conexionRSS.php";
 require_once "conexionBBDD.php";
 
-$url = "http://ep00.epimg.net/rss/elpais/portada.xml";
+$url = "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada";
 $sXML = download($url);
 
 // Si falla la descarga, no hacemos nada (evita errores fatales)
