@@ -1,178 +1,192 @@
 <!DOCTYPE html>
-<html lang="es">
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
     <head>
         <meta charset="UTF-8">
-        <title>Lector RSS</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                margin: 20px;
-                background-color: white;
-                color: #333;
-            }
-
-            h1 {
-                text-align: center;
-                color: #444;
-            }
-
-            form {
-                background-color: #ffffffff;
-                padding: 15px;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                text-align: center; 
-            }
-
-            input, select {
-                padding: 5px;
-                margin: 5px;
-            }
-
-            input[type="submit"] {
-                cursor: pointer;
-                background-color: #ddd;
-                border: 1px solid #777474ff;
-            }
-
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 20px;
-            }
-
-            th, td {
-                border: 1px solid #ccc9c9ff;
-                padding: 10px;
-                text-align: left;
-                font-size: 14px;
-            }
-
-            th {
-                background-color: #e0e0e0;
-                font-weight: bold;
-            }
-
-            tr:nth-child(even) {
-                background-color: #aeacacff;
-            }
-
-            a {
-                color: #0066cc;
-                text-decoration: none;
-            }
-            
-        </style>
+        <title></title>
     </head>
     <body>
-
-        <h1>Lector de Noticias</h1>
-
-        <div style="display:none;">
-            <?php
-            ob_start(); 
-            require_once __DIR__ . "/../RSSElPais.php";
-            require_once __DIR__ . "/../RSSElMundo.php";
-            ob_end_clean(); 
-            ?>
-        </div>
-
-        <form action="index.php" method="GET">
-            <label>Periódico:</label>
-            <select name="periodicos">
-                <option value="elpais" <?php if(isset($_REQUEST['periodicos']) && $_REQUEST['periodicos'] == 'elpais') echo 'selected'; ?>>El País</option>
-                <option value="elmundo" <?php if(isset($_REQUEST['periodicos']) && $_REQUEST['periodicos'] == 'elmundo') echo 'selected'; ?>>El Mundo</option>      
-            </select> 
-
-            <label>Categoría:</label>
-            <select name="categoria">
-                <option value="">Todas</option>
-                <option value="Política">Política</option>
-                <option value="Deportes">Deportes</option>
-                <option value="Ciencia">Ciencia</option>
-                <option value="España">España</option>
-                <option value="Economía">Economía</option>
-                <option value="Música">Música</option>
-                <option value="Cine">Cine</option>
-                <option value="Europa">Europa</option>
-                <option value="Justicia">Justicia</option>                
-            </select>
-
-            <label>Fecha:</label>
-            <input type="date" name="fecha" value="<?php echo isset($_REQUEST['fecha']) ? $_REQUEST['fecha'] : ''; ?>">
-
-            <label>Buscar:</label>
-            <input type="text" name="buscar" value="<?php echo isset($_REQUEST['buscar']) ? $_REQUEST['buscar'] : ''; ?>">
-            
-            <input type="submit" name="filtrar" value="Filtrar">
+        <form action="index.php">
+            <fieldset> 
+                <legend>FILTRO</legend>
+                <label>PERIODICO : </label>
+                <select type="selector" name="periodicos">
+                    <option name="elpais">El Pais</option>
+                    <option name="elmundo">El Mundo</option>      
+                </select> 
+                <label>CATEGORIA : </label>
+                <select type="selector" name="categoria" value="">
+                    <option name=""></option>
+                    <option name="Política">Política</option>
+                    <option name="Deportes">Deportes</option>
+                    <option name="Ciencia">Ciencia</option>
+                    <option name="España">España</option>
+                    <option name="Economía">Economía</option>
+                    <option name="Música">Música</option>
+                    <option name="Cine">Cine</option>
+                    <option name="Europa">Europa</option>
+                    <option name="Justicia">Justicia</option>                
+                </select>
+                <label>FECHA : </label>
+                <input type="date" name="fecha" value=""></input>
+                <label style="margin-left: 5vw;">AMPLIAR FILTRO (la descripción contenga la palabra) : </label>
+                <input type="text" name="buscar" value=""></input>
+                <input type="submit" name="filtrar">
+            </fieldset>
         </form>
         
-        <?php
-        require_once __DIR__ . "/../conexionBBDD.php"; 
         
-        function filtros($sql, $pdo){ 
-            if ($pdo === false) {
-                echo "<p style='color:red; text-align:center;'>Error de conexión.</p>";
-                return;
-            }
-            try {
-                $stmt = $pdo->query($sql);
-                if ($stmt->rowCount() == 0) {
-                    echo "<p style='text-align:center;'>No hay resultados.</p>";
-                    return;
-                }
-                while ($arrayFiltro = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    echo "<tr>";              
-                        echo "<td><b>".$arrayFiltro['titulo']."</b></td>";
-                        echo "<td>". substr(strip_tags($arrayFiltro['contenido']), 0, 100) . "...</td>";
-                        echo "<td>". substr(strip_tags($arrayFiltro['descripcion']), 0, 100) . "...</td>";                      
-                        echo "<td>".$arrayFiltro['categoria']."</td>";                       
-                        echo "<td><a href='".$arrayFiltro['link']."' target='_blank'>Leer</a></td>";                              
-                        
-                        $fechaTexto = $arrayFiltro['fPubli'];
-                        $fechaConversion = $fechaTexto ? date_format(date_create($fechaTexto), 'd/m/Y') : "-";
-                        
-                        echo "<td>".$fechaConversion."</td>";
-                    echo "</tr>";  
-                }
-            } catch (PDOException $e) {
-                echo "<p>Error SQL.</p>";
-            }
+        
+        
+        
+        <?php
+        
+        
+        require_once "RSSElPais.php";
+        require_once "RSSElMundo.php";
+        
+        function filtros($sql, $link){
+                 $filtrar= mysqli_query($link, $sql);
+                 while ($arrayFiltro= mysqli_fetch_array($filtrar)) {
+
+                               echo"<tr>";              
+                                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['titulo']."</th>";
+                                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['contenido']."</th>";
+                                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['descripcion']."</th>";                      
+                                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['categoria']."</th>";                       
+                                    echo "<th style='border: 1px #E4CCE8 solid;'>".$arrayFiltro['link']."</th>";                              
+                                    $fecha=date_create($arrayFiltro['fPubli']);
+                                    $fechaConversion=date_format($fecha,'d-M-Y');
+                                    //$fechaConversion=date('j-n-Y',srtotime($arrayFiltro['fPubli']));
+                                    echo "<th style='border: 1px #E4CCE8 solid;'>".$fechaConversion."</th>";
+                               echo"</tr>";  
+
+                    }
+ 
         }
         
-        if($link !== false){ 
-            echo "<table>";
-            echo "<tr>
-                    <th>TÍTULO</th>
-                    <th>CONTENIDO</th>
-                    <th>DESCRIPCIÓN</th>
-                    <th>CATEGORÍA</th>
-                    <th>ENLACE</th>
-                    <th>FECHA</th>
-                  </tr>";
+        require_once "conexionBBDD.php";
+        
+        if(mysqli_connect_error()){
+        printf("Conexión fallida");
+        }else{
+       
+            echo"<table style='border: 5px #E4CCE8 solid;'>";
+            echo"<tr><th><p style='color: #66E9D9;'>TITULO</p ></th><th><p  style='color: #66E9D9;'>CONTENIDO</p ></th><th><p  style='color: #66E9D9;'>DESCRIPCIÓN</p ></th><th><p  style='color: #66E9D9;'>CATEGORÍA</p ></th><th><p  style='color: #66E9D9;'>ENLACE</p ></th><th><p  style='color: #66E9D9;'>FECHA DE PUBLICACIÓN</p ></th></tr>"."<br>";
 
-            $tabla = "elpais";
-            if (isset($_REQUEST['periodicos'])) {
-                $p = strtolower(str_replace(' ', '', $_REQUEST['periodicos']));
-                if ($p == "elmundo") $tabla = "elmundo";
-            }
-
-            $sql = "SELECT * FROM $tabla WHERE 1=1"; 
+               
+           
 
             if(isset($_REQUEST['filtrar'])){
-                $cat = $_REQUEST['categoria'];
-                $f = $_REQUEST['fecha'];
-                $palabra = $_REQUEST['buscar'];
 
-                if (!empty($cat)) $sql .= " AND categoria LIKE '%$cat%'";
-                if (!empty($f)) $sql .= " AND \"fPubli\" = '$f'";
-                if (!empty($palabra)) $sql .= " AND (descripcion LIKE '%$palabra%' OR titulo LIKE '%$palabra%')";
-            }
+             $periodicos= str_replace(' ','',$_REQUEST['periodicos']);
+             $periodicosMin=strtolower($periodicos);
             
-            $sql .= " ORDER BY \"fPubli\" DESC LIMIT 50";
-            filtros($sql, $link);
-            echo "</table>";   
+
+                $cat=$_REQUEST['categoria'];
+                $f=$_REQUEST['fecha'];
+                $palabra=$_REQUEST["buscar"];
+                 
+                //FILTRO PERIODICO
+
+                if($cat=="" && $f=="" && $palabra==""){
+                 //$periodicos= str_replace(' ','',$_REQUEST['periodicos']);
+                 $sql="SELECT * FROM ".$periodicosMin." ORDER BY fPubli desc";
+                 
+                 filtros($sql,$link);
+                
+                }
+
+                //FILTRO CATEGORIA
+                
+                   if($cat!="" && $f=="" && $palabra==""){ 
+                    $sql="SELECT * FROM ".$periodicosMin." WHERE categoria LIKE '%$cat%'";
+                    
+                    filtros($sql,$link);
+
+                        
+                    }
+
+                    //FILTRO FECHA
+
+                       if($cat=="" && $f!="" && $palabra==""){
+                           $sql="SELECT * FROM ".$periodicosMin." WHERE fPubli='$f'";
+                          
+                           filtros($sql,$link);
+                           
+                        }
+
+                        //FILTRO CATEGORIA Y FECHA
+                            if($cat!="" && $f!="" && $palabra==""){ 
+                              $sql="SELECT * FROM ".$periodicosMin." WHERE categoria LIKE '%$cat%' and fPubli='$f'";
+                             
+                              filtros($sql,$link);
+                              
+                            }
+
+                            //FILTRO TODO
+                            
+                             if($cat!="" && $f!="" && $palabra!=""){ 
+                              $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' and categoria LIKE '%$cat%' and fPubli='$f'";
+                             
+                              filtros($sql,$link);
+                            
+                            }  
+
+                            //FILTRO CATEGORIA PALABRA
+            
+                            if($cat!="" && $f=="" && $palabra!=""){ 
+                                 //echo $periodicosMin;
+                              $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' and categoria LIKE '%$cat%'";
+                             
+                              filtros($sql,$link);
+                            
+                            } 
+
+                            //FILTRO FECHA Y PALABRA 
+                            
+                             if($cat=="" && $f!="" && $palabra!=""){ 
+                                 //echo $periodicosMin;
+                              $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' and fPubli='$f'";
+                             
+                              filtros($sql,$link);
+                            
+                            }  
+
+                            //FILTRO PALABRA
+                            
+                            if($palabra!="" && $cat=="" && $f=="" ){ 
+                               // echo $periodicosMin;
+                                // echo $palabra;
+                              $sql="SELECT * FROM ".$periodicosMin." WHERE descripcion LIKE '%$palabra%' ";
+                             
+                              filtros($sql,$link);
+                            
+                            }  
+                
+            }else{
+                            
+                            $sql="SELECT * FROM elpais ORDER BY fPubli desc";
+                            
+                            filtros($sql,$link);
+                            
+            }
+                  
         }
+        
+          
+        echo"</table>";   
+        
+           
+        
+    
+    
+     
         ?>
+        
     </body>
 </html>
