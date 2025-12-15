@@ -1,10 +1,20 @@
 <?php
+// api/conexionBBDD.php
 
-$Repit=false;
-$host="localhost";
-$user="root";
-$password="";
+function obtenerConexion() {
+    $host = getenv('POSTGRES_HOST');
+    $dbname = getenv('POSTGRES_DATABASE');
+    $user = getenv('POSTGRES_USER');
+    $password = getenv('POSTGRES_PASSWORD');
 
-$link= mysqli_connect($host,$user,$password);
-$tildes=$link->query("SET NAMES 'utf8'");
-mysqli_select_db($link,'periodicos');
+    $dsn = "pgsql:host=$host;port=5432;dbname=$dbname;user=$user;password=$password;sslmode=require";
+
+    try {
+        $pdo = new PDO($dsn);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return $pdo;
+    } catch (PDOException $e) {
+        die("Error de conexión a la Base de Datos: " . $e->getMessage());
+    }
+}
+?>
