@@ -1,65 +1,80 @@
 <?php
-// api/RSSElMundo.php
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 require_once "conexionRSS.php";
+
+$sXML = download("https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml");
+
+$oXML = null;
+if (!empty($sXML)) {
+    try {
+        $oXML = new SimpleXMLElement($sXML);
+    } catch (Exception $e) {
+    }
+}
+
 require_once "conexionBBDD.php";
 
-// 1. URL NUEVA (HTTPS)
-$url = "https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml";
+if ($link instanceof PDO && $oXML !== null) {
 
-$sXML = download($url);
+    $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
 
-// --- PROTECCIÓN ANTI-403 ---
-// Si nos bloquearon, paramos aquí y NO hacemos nada más.
-// Así tu web no muestra error, simplemente no actualiza noticias nuevas.
-if ($sXML === false || empty($sXML)) { return; }
+    $sql_check = "SELECT link FROM elmundo WHERE link = :link";
+    $stmt_check = $link->prepare($sql_check);
 
-try {
-    libxml_use_internal_errors(true);
-    $oXML = new SimpleXMLElement($sXML);
-} catch (Exception $e) { return; }
+    $sql_insert = "INSERT INTO elmundo (titulo, link, descripcion, categoria, \"fPubli\", contenido) VALUES(:titulo, :link, :descripcion, :categoria, :fPubli, :contenido)";
+    $stmt_insert = $link->prepare($sql_insert);
 
-$pdo = obtenerConexion();
-if (!$pdo) { return; }
+    foreach ($oXML->channel->item as $item){ 
 
-$categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+        $Repit = false;
+        $categoriaFiltro = "";
 
-foreach ($oXML->channel->item as $item) {
-    // Categorías
-    $categoriaFiltro = "";
-    if (isset($item->category)) {
-        for ($i = 0; $i < count($item->category); $i++) {
-            $catActual = (string)$item->category[$i];
-            if (in_array($catActual, $categoria)) {
-                $categoriaFiltro = "[" . $catActual . "]" . $categoriaFiltro;
+        $media = $item->children("media", true);
+        $description = (string)$item->description; 
+        if(empty($description) && !empty($media->description)){
+             $description = (string)$media->description;
+        }
+
+        for ($i=0; $i < count($item->category); $i++){ 
+            for($j=0; $j < count($categoria); $j++){
+                if($item->category[$i] == $categoria[$j]){
+                    $categoriaFiltro = "[".$categoria[$j]."]" . $categoriaFiltro;
+                }
             }
         }
-    }
 
-    $titulo = (string)$item->title;
-    $linkNoticia = (string)$item->link;
-    $guid = (string)$item->guid;
-    $fPubli = strtotime($item->pubDate);
-    $new_fPubli = ($fPubli) ? date('Y-m-d', $fPubli) : date('Y-m-d');
+        $fPubli = strtotime($item->pubDate);
+        $new_fPubli = date('Y-m-d', $fPubli);
 
-    // Descripción
-    $media = $item->children("media", true);
-    $descripcion = isset($media->description) ? (string)$media->description : (string)$item->description;
+        $contenido = (string)$item->guid;
 
-    // Guardar si no existe
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM elmundo WHERE link = :link");
-    $stmt->execute([':link' => $linkNoticia]);
-    
-    if ($stmt->fetchColumn() == 0 && $categoriaFiltro != "") {
         try {
-            $sql = "INSERT INTO elmundo (titulo, link, descripcion, categoria, fecha, guid) 
-                    VALUES (:t, :l, :d, :c, :f, :g)";
-            $stmtInsert = $pdo->prepare($sql);
-            $stmtInsert->execute([
-                ':t' => $titulo, ':l' => $linkNoticia, ':d' => $descripcion,
-                ':c' => $categoriaFiltro, ':f' => $new_fPubli, ':g' => $guid
-            ]);
-        } catch (Exception $e) { }
+            $stmt_check->execute([':link' => (string)$item->link]);
+            if ($stmt_check->fetch()) {
+                $Repit = true;
+            }
+        } catch (PDOException $e) {
+        }
+
+        if ($Repit == false && $categoriaFiltro != "") {
+            try {
+                $stmt_insert->execute([
+                    ':titulo' => (string)$item->title,
+                    ':link' => (string)$item->link,
+                    ':descripcion' => $description,
+                    ':categoria' => $categoriaFiltro,
+                    ':fPubli' => $new_fPubli,
+                    ':contenido' => $contenido
+                ]);
+            } catch (PDOException $e) {
+            }
+        } 
     }
+
+} else if ($link === false) {
+    printf("Conexión a el periódico El Mundo ha fallado.");
 }
 ?>

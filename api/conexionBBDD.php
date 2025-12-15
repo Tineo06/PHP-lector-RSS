@@ -1,24 +1,39 @@
 <?php
-// api/conexionBBDD.php
 
-function obtenerConexion() {
-    // Estas variables las pone Vercel automáticamente
-    $host = getenv('POSTGRES_HOST');
-    $dbname = getenv('POSTGRES_DATABASE');
-    $user = getenv('POSTGRES_USER');
-    $password = getenv('POSTGRES_PASSWORD');
+$link = false; 
 
-    // IMPORTANTE: Neon requiere sslmode=require
-    $dsn = "pgsql:host=$host;port=5432;dbname=$dbname;user=$user;password=$password;sslmode=require";
+$dbUrl = getenv('DB_POSTGRES_URL'); 
 
+if (!empty($dbUrl)) {
+    
     try {
+        $url = parse_url($dbUrl);
+        
+        $host = $url['host'] ?? '';
+        $port = $url['port'] ?? 5432;
+        $user = $url['user'] ?? '';
+        $pass = $url['pass'] ?? '';
+        $path = ltrim($url['path'] ?? '/neondb', '/');
+
+        $dsn = sprintf(
+            "pgsql:host=%s;port=%d;dbname=%s;user=%s;password=%s;sslmode=require",
+            $host,
+            $port,
+            $path,
+            $user,
+            $pass
+        );
+
         $pdo = new PDO($dsn);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        return $pdo;
+        
+        $pdo->exec("SET NAMES 'utf8'");
+
+        $link = $pdo; 
+        
     } catch (PDOException $e) {
-        // En producción no mostramos el error real por seguridad
-        // error_log("Error BD: " . $e->getMessage());
-        return null;
+        $link = false;
+
     }
 }
 ?>
