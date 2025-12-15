@@ -71,6 +71,5 @@ if(!$link){
              }
         } 
     }
-    echo "Proceso terminado. Noticias de El Mundo actualizadas.";
 }
 ?>

@@ -62,6 +62,5 @@ if(!$link){
              pg_query($link, $sqlInsert);
         } 
     }
-    echo "Proceso terminado. Noticias de El País actualizadas.";
 }
 ?>
