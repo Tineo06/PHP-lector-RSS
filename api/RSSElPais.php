@@ -1,71 +1,55 @@
 <?php
-
+// conexionRSS.php ya debe estar incluido o requerirse
 require_once "conexionRSS.php";
 
-$sXML=download("http://ep00.epimg.net/rss/elpais/portada.xml");
+$sXML = download("http://ep00.epimg.net/rss/elpais/portada.xml");
+$oXML = new SimpleXMLElement($sXML);
 
-$oXML=new SimpleXMLElement($sXML);
-
+// Asumimos que $link ya viene de index.php o lo requerimos
 require_once "conexionBBDD.php";
 
-if(mysqli_connect_error()){
-    printf("Conexión a el periódico El País ha fallado");
-}else{
+if(!$link){
+    // Error conexión
+} else {
+    $categoria = ["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
+    
+    foreach ($oXML->channel->item as $item){
+        $categoriaFiltro = "";
         
-            $contador=0;
-            $categoria=["Política","Deportes","Ciencia","España","Economía","Música","Cine","Europa","Justicia"];
-            $categoriaFiltro="";
-            
-            foreach ($oXML->channel->item as $item){
-                
-                for ($i=0 ;$i<count($item->category); $i++){ 
-                    
-                    for($j=0; $j<count($categoria); $j++){
-                        
-                        if($item->category[$i]==$categoria[$j]){
-                            $categoriaFiltro="[".$categoria[$j]."]".$categoriaFiltro;
-                        }
-                    } 
-                      
+        // Lógica de categorías (se mantiene igual)
+        for ($i=0; $i<count($item->category); $i++){ 
+            for($j=0; $j<count($categoria); $j++){
+                if($item->category[$i] == $categoria[$j]){
+                    $categoriaFiltro = "[".$categoria[$j]."]".$categoriaFiltro;
                 }
-
-                  
-              
-                $fPubli= strtotime($item->pubDate);
-                $new_fPubli= date('Y-m-d', $fPubli);
-               
-
-                $content = $item->children("content", true);
-                $encoded = $content->encoded; 
-
-              
-                $sql="SELECT link FROM elpais";
-                $result= mysqli_query($link,$sql); 
-                
-                while($sqlCompara=mysqli_fetch_array($result)){
-                      
-                     
-                 if($sqlCompara['link']==$item->link){
-                     
-                    $Repit=true; 
-                    $contador=$contador+1;
-                    $contadorTotal=$contador;
-                    break;
-                    }else {
-                        $Repit=false;
-                    }
-                    
-                   
-                }
-                     if($Repit==false && $categoriaFiltro<>""){
-                        
-                        $sql="INSERT INTO elpais VALUES('','$item->title','$item->link','$item->description','$categoriaFiltro','$new_fPubli','$encoded')";
-                        $result= mysqli_query($link, $sql);
-                        
-                } 
-               
-                $categoriaFiltro="";
+            } 
         }
-               
-                   
+
+        $fPubli = strtotime($item->pubDate);
+        $new_fPubli = date('Y-m-d', $fPubli);
+
+        $content = $item->children("content", true);
+        $encoded = (string)$content->encoded; 
+        
+        // Escapar strings para evitar errores de sintaxis en SQL
+        $titulo = pg_escape_string($link, $item->title);
+        $linkUrl = pg_escape_string($link, $item->link);
+        $descripcion = pg_escape_string($link, $item->description);
+        $catFiltro = pg_escape_string($link, $categoriaFiltro);
+        $encodedSafe = pg_escape_string($link, $encoded);
+
+        // Comprobar duplicados
+        $sql = "SELECT link FROM elpais WHERE link = '$linkUrl'";
+        $result = pg_query($link, $sql);
+        
+        // Si pg_num_rows es 0, significa que no existe
+        if(pg_num_rows($result) == 0 && $categoriaFiltro <> ""){
+             // EN POSTGRES, OMITIMOS EL ID SI ES SERIAL (AUTO INCREMENT)
+             // Asumiendo que la tabla tiene columnas (titulo, link, descripcion, categoria, fpubli, contenido)
+             $sqlInsert = "INSERT INTO elpais (titulo, link, descripcion, categoria, fpubli, contenido) 
+                           VALUES ('$titulo', '$linkUrl', '$descripcion', '$catFiltro', '$new_fPubli', '$encodedSafe')";
+             pg_query($link, $sqlInsert);
+        } 
+    }
 }
+?>
